@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Extract version from tag
+      id: version
+      run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+    
+    - name: Update version in POM files
+      run: |
+        mvn versions:set -DnewVersion=${{ steps.version.outputs.version }} -B
+        mvn versions:commit -B
+    
+    - name: Run tests
+      run: mvn clean verify -B
+      env:
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+    
+    - name: Build release artifacts
+      run: mvn clean package -DskipTests -B
+    
+    - name: Create release notes
+      id: release_notes
+      run: |
+        # Extract release notes from CHANGELOG.md
+        awk '/^## \['"${{ steps.version.outputs.version }}"'\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md > release_notes.md || echo "Release ${{ steps.version.outputs.version }}" > release_notes.md
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          conexus-core/target/*.jar
+          conexus-plugin/target/*.jar
+        body_path: release_notes.md
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    # Uncomment when ready to publish to Maven Central
+    # - name: Publish to Maven Central
+    #   run: mvn clean deploy -B -DskipTests -P release
+    #   env:
+    #     MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+    #     MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+    #     GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}

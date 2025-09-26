@@ -1,0 +1,117 @@
+name: Bug Report
+description: Report a bug or issue with Conexus
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out this form as completely as possible.
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Prerequisites
+      description: Please confirm the following before submitting a bug report
+      options:
+        - label: I have searched existing issues to make sure this isn't a duplicate
+          required: true
+        - label: I have read the documentation and troubleshooting guide
+          required: true
+        - label: I am using a supported version of Minecraft/Java
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Conexus Version
+      description: What version of Conexus are you using?
+      placeholder: e.g., 1.0.0-SNAPSHOT
+    validations:
+      required: true
+
+  - type: input
+    id: minecraft-version
+    attributes:
+      label: Minecraft Version
+      description: What version of Minecraft are you running?
+      placeholder: e.g., 1.20.4
+    validations:
+      required: true
+
+  - type: input
+    id: java-version
+    attributes:
+      label: Java Version
+      description: What version of Java are you using?
+      placeholder: e.g., Java 17
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: A clear and concise description of what actually happened
+      placeholder: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Messages/Logs
+      description: If applicable, add error messages or log output
+      render: shell
+      placeholder: Paste error messages or log output here...
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Your Conexus configuration (remove any sensitive information)
+      render: yaml
+      placeholder: |
+        server-id: "server-1"
+        redis:
+          host: "127.0.0.1"
+          port: 6379
+          # ... other config
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here
+      placeholder: Any additional information that might be helpful...

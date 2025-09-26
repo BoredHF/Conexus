@@ -1,0 +1,15 @@
+name: Conexus
+main: com.boredhf.conexus.plugin.ConexusPlugin
+version: 1.0.0-SNAPSHOT
+author: BoredHF
+description: Cross-server communication library and starter plugin
+api-version: '1.20'
+commands:
+  cxsay:
+    description: Broadcast a cross-server message via Conexus
+    usage: /<command> <message>
+    permission: conexus.cxsay
+permissions:
+  conexus.cxsay:
+    description: Allows broadcasting cross-server messages
+    default: op

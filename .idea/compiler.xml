@@ -6,7 +6,8 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="conexus" />
+        <module name="conexus-core" />
+        <module name="conexus-plugin" />
       </profile>
     </annotationProcessing>
   </component>
