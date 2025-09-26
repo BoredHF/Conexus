@@ -47,14 +47,15 @@ jobs:
         REDIS_HOST: localhost
         REDIS_PORT: 6379
     
-    - name: Upload coverage reports to Codecov
-      if: matrix.java == '17'
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./target/site/jacoco/jacoco.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+    # Temporarily disabled codecov until JaCoCo Java version compatibility is fixed
+    # - name: Upload coverage reports to Codecov
+    #   if: matrix.java == '17'
+    #   uses: codecov/codecov-action@v3
+    #   with:
+    #     file: ./target/site/jacoco/jacoco.xml
+    #     flags: unittests
+    #     name: codecov-umbrella
+    #     fail_ci_if_error: false
 
   build:
     needs: test

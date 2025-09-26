@@ -247,7 +247,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>0.8.12</version>
                 <executions>
                     <execution>
                         <goals>
@@ -320,10 +320,11 @@
         
         <!-- Default plugins for all modules -->
         <plugins>
-            <plugin>
+            <!-- Temporarily disabled JaCoCo due to Java version compatibility issues -->
+            <!-- <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-            </plugin>
+            </plugin> -->
         </plugins>
     </build>
     
@@ -338,7 +339,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>0.8.12</version>
                 <reportSets>
                     <reportSet>
                         <reports>
