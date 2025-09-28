@@ -107,11 +107,13 @@ class EventBroadcastDebugTest {
         
         // Try creating and broadcasting NetworkEventMessage directly
         System.out.println("Testing direct NetworkEventMessage broadcast...");
+        NetworkEventRegistry testRegistry = new NetworkEventRegistry(new MessageSerializer());
         NetworkEventMessage directEventMsg = new NetworkEventMessage(
             ServerStatusEvent.class,
             new ServerStatusEvent("debug-server-1", ServerStatusEvent.ServerStatus.MAINTENANCE, "Direct test"),
             EventService.EventPriority.NORMAL,
-            "debug-server-1"
+            "debug-server-1",
+            testRegistry
         );
         server1.getMessagingService().broadcast(directEventMsg).get(5, TimeUnit.SECONDS);
         Thread.sleep(2000);

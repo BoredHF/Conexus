@@ -83,9 +83,6 @@ public class CrossServerEventService implements EventService {
         // Initialize metrics collection
         this.metrics = new EventMetrics(serverId);
         
-        // Initialize the static registry for NetworkEventMessage
-        NetworkEventMessage.setEventRegistry(this.eventRegistry);
-        
         logger.info("CrossServerEventService created for server {} with configuration: {}", 
                   serverId, configuration);
         logger.debug("Retry manager: {}", retryManager);
@@ -202,7 +199,8 @@ public class CrossServerEventService implements EventService {
                                 (Class<? extends NetworkEvent>) event.getClass(),
                                 event,
                                 priority,
-                                serverId
+                                serverId,
+                                eventRegistry
                             );
                             
                             logger.debug("Broadcasting NetworkEventMessage: {} from server {}", 
@@ -286,7 +284,7 @@ public class CrossServerEventService implements EventService {
             }
             
             // Reconstruct the event from serialized data
-            eventMessage.reconstructEvent();
+            eventMessage.reconstructEvent(eventRegistry);
             
             NetworkEvent event = eventMessage.getEventData();
             EventPriority priority = eventMessage.getPriority();

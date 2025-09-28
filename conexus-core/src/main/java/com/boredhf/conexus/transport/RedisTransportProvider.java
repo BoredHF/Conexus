@@ -157,7 +157,10 @@ public class RedisTransportProvider implements TransportProvider {
     public CompletableFuture<Void> subscribe(String channel, Consumer<byte[]> messageHandler) {
         return CompletableFuture.runAsync(() -> {
             subscriptions.put(channel, messageHandler);
-            logger.debug("Added subscription for channel: {}", channel);
+            logger.debug("Added subscription for channel: {} (total subscriptions: {})", channel, subscriptions.size());
+            
+            // We rely on pattern subscription ("*") which catches all channels
+            // No need for specific channel subscriptions as they would cause duplicates
         });
     }
     
@@ -165,9 +168,18 @@ public class RedisTransportProvider implements TransportProvider {
     public CompletableFuture<Void> unsubscribe(String channel) {
         return CompletableFuture.runAsync(() -> {
             subscriptions.remove(channel);
+            logger.debug("Removed subscription for channel: {} (remaining: {})", channel, subscriptions.size());
             
             if (pubSub != null && pubSub.isSubscribed()) {
-                pubSub.unsubscribe(channel);
+                try {
+                    if (channel.contains("*")) {
+                        pubSub.punsubscribe(channel);
+                    } else {
+                        pubSub.unsubscribe(channel);
+                    }
+                } catch (Exception e) {
+                    logger.debug("Could not unsubscribe from channel {}: {}", channel, e.getMessage());
+                }
             }
         });
     }
@@ -241,11 +253,13 @@ public class RedisTransportProvider implements TransportProvider {
         pubSub = new JedisPubSub() {
             @Override
             public void onMessage(String channel, String message) {
+                // Only handle direct subscriptions here (not used in current implementation)
                 handleChannelMessage(channel, message);
             }
             
             @Override
             public void onPMessage(String pattern, String channel, String message) {
+                // Handle pattern-based subscriptions (this is what we use)
                 handleChannelMessage(channel, message);
             }
             
@@ -270,16 +284,38 @@ public class RedisTransportProvider implements TransportProvider {
             }
             
             private void handleChannelMessage(String channel, String message) {
-                Consumer<byte[]> handler = subscriptions.get(channel);
-                if (handler != null) {
-                    try {
-                        handler.accept(message.getBytes());
-                        logger.debug("Delivered message to handler for channel: {}", channel);
-                    } catch (Exception e) {
-                        logger.error("Error handling message on channel: {}", channel, e);
+                // Check all subscriptions for matches (both exact and pattern)
+                // Use a flag to ensure we only deliver once per channel, even if multiple patterns match
+                boolean delivered = false;
+                
+                for (String subscribedChannel : subscriptions.keySet()) {
+                    boolean matches = false;
+                    
+                    if (subscribedChannel.equals(channel)) {
+                        // Exact match
+                        matches = true;
+                    } else if (subscribedChannel.contains("*")) {
+                        // Pattern match - convert Redis pattern to regex
+                        String regex = subscribedChannel.replace("*", ".*");
+                        matches = channel.matches(regex);
                     }
-                } else {
-                    logger.debug("No handler found for channel: {} (available: {})", channel, subscriptions.keySet());
+                    
+                    if (matches && !delivered) {
+                        Consumer<byte[]> handler = subscriptions.get(subscribedChannel);
+                        if (handler != null) {
+                            try {
+                                handler.accept(message.getBytes());
+                                logger.debug("Delivered message to handler {} for channel: {}", subscribedChannel, channel);
+                                delivered = true; // Prevent duplicate delivery
+                            } catch (Exception e) {
+                                logger.error("Error handling message on channel: {} with handler: {}", channel, subscribedChannel, e);
+                            }
+                        }
+                    }
+                }
+                
+                if (!delivered) {
+                    logger.debug("No matching handler found for channel: {} (available: {})", channel, subscriptions.keySet());
                 }
             }
         };
@@ -287,6 +323,7 @@ public class RedisTransportProvider implements TransportProvider {
         // Start pub/sub in background thread
         executorService.submit(() -> {
             try (var jedis = jedisPool.getResource()) {
+                // Use pattern subscribe to catch all messages
                 jedis.psubscribe(pubSub, "*");
             } catch (Exception e) {
                 logger.error("Error in pub/sub thread", e);

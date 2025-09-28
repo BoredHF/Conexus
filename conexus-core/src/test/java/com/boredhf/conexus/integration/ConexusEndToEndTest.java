@@ -2,6 +2,7 @@ package com.boredhf.conexus.integration;
 
 import com.boredhf.conexus.Conexus;
 import com.boredhf.conexus.ConexusImpl;
+import com.boredhf.conexus.TestRedisConfiguration;
 import com.boredhf.conexus.communication.DefaultMessagingService;
 import com.boredhf.conexus.communication.MessageSerializer;
 import com.boredhf.conexus.communication.messages.SimpleTextMessage;
@@ -38,13 +39,24 @@ class ConexusEndToEndTest {
     
     @BeforeAll
     static void setUpRedis() throws Exception {
-        redisPort = findAvailablePort();
-        redisServer = RedisServer.builder()
-                .port(redisPort)
-                .setting("maxmemory 64M")
-                .build();
-        redisServer.start();
-        Thread.sleep(200); // Give Redis time to start
+        System.out.println("Redis configuration: " + TestRedisConfiguration.getConfigurationSummary());
+        
+        if (TestRedisConfiguration.useExternalRedis()) {
+            // Use external Redis (e.g., from GitHub Actions)
+            redisPort = TestRedisConfiguration.getRedisPort();
+            redisServer = null; // No embedded server needed
+            System.out.println("Using external Redis at " + TestRedisConfiguration.getRedisHost() + ":" + redisPort);
+        } else {
+            // Use embedded Redis for local development
+            redisPort = findAvailablePort();
+            redisServer = RedisServer.builder()
+                    .port(redisPort)
+                    .setting("maxmemory 64M")
+                    .build();
+            redisServer.start();
+            Thread.sleep(200); // Give Redis time to start
+            System.out.println("Started embedded Redis on port " + redisPort);
+        }
     }
     
     @AfterAll
@@ -103,23 +115,31 @@ class ConexusEndToEndTest {
         // Scenario: Player sends a message from lobby that should be broadcast to all game servers
         CountDownLatch messagesReceived = new CountDownLatch(2); // Expect 2 game servers to receive
         List<SimpleTextMessage> receivedMessages = new ArrayList<>();
+        Object receivedMessagesLock = new Object();
         
         // Set up message handlers on game servers
         gameServer1.getMessagingService().registerHandler(SimpleTextMessage.class, context -> {
             if ("global-chat".equals(context.getMessage().getCategory())) {
-                receivedMessages.add(context.getMessage());
+                synchronized (receivedMessagesLock) {
+                    receivedMessages.add(context.getMessage());
+                }
                 messagesReceived.countDown();
+                System.out.println("Game server 1 received message: " + context.getMessage().getContent());
             }
         });
         
         gameServer2.getMessagingService().registerHandler(SimpleTextMessage.class, context -> {
             if ("global-chat".equals(context.getMessage().getCategory())) {
-                receivedMessages.add(context.getMessage());
+                synchronized (receivedMessagesLock) {
+                    receivedMessages.add(context.getMessage());
+                }
                 messagesReceived.countDown();
+                System.out.println("Game server 2 received message: " + context.getMessage().getContent());
             }
         });
         
-        Thread.sleep(500);
+        // Wait longer for handlers to be registered and pub/sub to be fully ready
+        Thread.sleep(2000);
         
         // Send global chat message from lobby
         SimpleTextMessage chatMessage = new SimpleTextMessage(
@@ -128,17 +148,29 @@ class ConexusEndToEndTest {
                 "global-chat"
         );
         
+        System.out.println("Sending message from lobby server: " + chatMessage.getContent());
         lobbyServer.getMessagingService().broadcast(chatMessage).get(5, TimeUnit.SECONDS);
+        System.out.println("Message broadcast completed");
+        
+        // Give extra time for message propagation
+        boolean allReceived = messagesReceived.await(15, TimeUnit.SECONDS);
+        
+        System.out.println("Messages received: " + receivedMessages.size() + " out of expected 2");
+        for (int i = 0; i < receivedMessages.size(); i++) {
+            System.out.println("  Message " + (i+1) + ": " + receivedMessages.get(i).getContent());
+        }
         
         // Verify message was received by game servers
-        assertTrue(messagesReceived.await(10, TimeUnit.SECONDS), 
-                "Game servers should receive the chat message");
-        assertEquals(2, receivedMessages.size(), "Both game servers should receive the message");
+        assertTrue(allReceived, "Game servers should receive the chat message");
         
-        for (SimpleTextMessage received : receivedMessages) {
-            assertEquals(lobbyServer.getServerId(), received.getSourceServerId());
-            assertTrue(received.getContent().contains("TestPlayer"));
-            assertEquals("global-chat", received.getCategory());
+        synchronized (receivedMessagesLock) {
+            assertEquals(2, receivedMessages.size(), "Both game servers should receive the message");
+            
+            for (SimpleTextMessage received : receivedMessages) {
+                assertEquals(lobbyServer.getServerId(), received.getSourceServerId());
+                assertTrue(received.getContent().contains("TestPlayer"));
+                assertEquals("global-chat", received.getCategory());
+            }
         }
     }
     
@@ -268,7 +300,10 @@ class ConexusEndToEndTest {
     }
     
     private Conexus createConexusInstance(String serverId) {
-        RedisTransportProvider transport = new RedisTransportProvider("127.0.0.1", redisPort, null, 0);
+        String redisHost = TestRedisConfiguration.useExternalRedis() ? 
+            TestRedisConfiguration.getRedisHost() : "127.0.0.1";
+        
+        RedisTransportProvider transport = new RedisTransportProvider(redisHost, redisPort, null, 0);
         MessageSerializer serializer = new MessageSerializer();
         DefaultMessagingService messaging = new DefaultMessagingService(serverId, transport, serializer);
         return new ConexusImpl(serverId, transport, messaging);
