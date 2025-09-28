@@ -2,14 +2,13 @@ package com.boredhf.conexus.events;
 
 import com.boredhf.conexus.Conexus;
 import com.boredhf.conexus.ConexusImpl;
+import com.boredhf.conexus.TestRedisConfiguration;
 import com.boredhf.conexus.communication.DefaultMessagingService;
 import com.boredhf.conexus.communication.MessageSerializer;
 import com.boredhf.conexus.events.types.PlayerNetworkEvent;
 import com.boredhf.conexus.events.types.ServerStatusEvent;
 import com.boredhf.conexus.transport.RedisTransportProvider;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import redis.embedded.RedisServer;
 
 import java.util.UUID;
@@ -25,24 +24,43 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class CrossServerEventIntegrationTest {
     
-    private RedisServer redisServer;
-    private int redisPort;
+    private static RedisServer redisServer;
+    private static int redisPort;
     private Conexus server1;
     private Conexus server2;
     private Conexus server3;
     
+    @BeforeAll
+    static void setUpRedis() throws Exception {
+        System.out.println("Redis configuration: " + TestRedisConfiguration.getConfigurationSummary());
+        
+        if (TestRedisConfiguration.useExternalRedis()) {
+            // Use external Redis (e.g., from GitHub Actions)
+            redisPort = TestRedisConfiguration.getRedisPort();
+            redisServer = null; // No embedded server needed
+            System.out.println("Using external Redis at " + TestRedisConfiguration.getRedisHost() + ":" + redisPort);
+        } else {
+            // Use embedded Redis for local development
+            redisPort = findAvailablePort();
+            redisServer = RedisServer.builder()
+                    .port(redisPort)
+                    .setting("maxmemory 64M")
+                    .build();
+            redisServer.start();
+            Thread.sleep(200); // Give Redis time to start
+            System.out.println("Started embedded Redis on port " + redisPort);
+        }
+    }
+    
+    @AfterAll
+    static void tearDownRedis() {
+        if (redisServer != null) {
+            redisServer.stop();
+        }
+    }
+    
     @BeforeEach
     void setUp() throws Exception {
-        // Start embedded Redis server
-        redisPort = findAvailablePort();
-        redisServer = RedisServer.builder()
-                .port(redisPort)
-                .setting("maxmemory 64M")
-                .build();
-        redisServer.start();
-        
-        Thread.sleep(100);
-        
         // Create three Conexus instances for testing
         server1 = createConexusInstance("event-server-1");
         server2 = createConexusInstance("event-server-2");
@@ -67,9 +85,6 @@ class CrossServerEventIntegrationTest {
         }
         if (server3 != null) {
             server3.shutdown().get(5, TimeUnit.SECONDS);
-        }
-        if (redisServer != null) {
-            redisServer.stop();
         }
     }
     
@@ -167,6 +182,7 @@ class CrossServerEventIntegrationTest {
         // Given
         CountDownLatch criticalReceived = new CountDownLatch(1);
         CountDownLatch normalReceived = new CountDownLatch(1);
+
         
         server2.getEventService().registerEventListener(ServerStatusEvent.class, event -> {
             if (event.getStatus() == ServerStatusEvent.ServerStatus.ERROR) {
@@ -257,13 +273,16 @@ class CrossServerEventIntegrationTest {
     }
     
     private Conexus createConexusInstance(String serverId) {
-        RedisTransportProvider transport = new RedisTransportProvider("127.0.0.1", redisPort, null, 0);
+        String redisHost = TestRedisConfiguration.useExternalRedis() ? 
+            TestRedisConfiguration.getRedisHost() : "127.0.0.1";
+            
+        RedisTransportProvider transport = new RedisTransportProvider(redisHost, redisPort, null, 0);
         MessageSerializer serializer = new MessageSerializer();
         DefaultMessagingService messaging = new DefaultMessagingService(serverId, transport, serializer);
         return new ConexusImpl(serverId, transport, messaging);
     }
     
-    private int findAvailablePort() {
+    private static int findAvailablePort() {
         try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
             return socket.getLocalPort();
         } catch (Exception e) {

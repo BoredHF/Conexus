@@ -37,18 +37,21 @@ public class NetworkEventMessage extends BaseMessage {
      * @param eventData the event data
      * @param priority the event priority
      * @param sourceServerId the server broadcasting this event
+     * @param registry the event registry to use for serialization
      */
     public NetworkEventMessage(Class<? extends EventService.NetworkEvent> eventType, 
                               EventService.NetworkEvent eventData,
                               EventService.EventPriority priority,
-                              String sourceServerId) {
+                              String sourceServerId,
+                              NetworkEventRegistry registry) {
         super(sourceServerId);
         this.eventType = eventType;
         this.eventData = eventData;
         this.eventTypeString = eventType.getName();
-        this.eventDataJson = serializeEventData(eventData);
+        this.eventDataJson = serializeEventData(eventData, registry);
         this.priority = priority;
         this.originalServerId = eventData.getSourceServerId();
+        this.eventRegistry = registry;
     }
     
     /**
@@ -97,29 +100,29 @@ public class NetworkEventMessage extends BaseMessage {
         return priority;
     }
     
-    // Static registry for event serialization/deserialization
-    private static NetworkEventRegistry eventRegistry;
+    // Instance registry for event serialization/deserialization
+    private transient NetworkEventRegistry eventRegistry;
     
     /**
      * Sets the event registry for serialization/deserialization.
-     * This must be called before creating any NetworkEventMessage instances.
+     * This should be called after deserialization and before calling reconstructEvent().
      * 
      * @param registry the event registry
      */
-    public static void setEventRegistry(NetworkEventRegistry registry) {
-        eventRegistry = registry;
+    public void setEventRegistry(NetworkEventRegistry registry) {
+        this.eventRegistry = registry;
     }
     
     /**
      * Helper method to serialize event data to JSON.
      */
-    private String serializeEventData(EventService.NetworkEvent event) {
-        if (eventRegistry == null) {
-            throw new IllegalStateException("NetworkEventRegistry not set. Call setEventRegistry() first.");
+    private String serializeEventData(EventService.NetworkEvent event, NetworkEventRegistry registry) {
+        if (registry == null) {
+            throw new IllegalStateException("NetworkEventRegistry cannot be null.");
         }
         
         try {
-            return eventRegistry.serializeEvent(event);
+            return registry.serializeEvent(event);
         } catch (NetworkEventRegistry.EventSerializationException e) {
             throw new RuntimeException("Failed to serialize event: " + e.getMessage(), e);
         }
@@ -128,28 +131,48 @@ public class NetworkEventMessage extends BaseMessage {
     /**
      * Reconstructs the event type and data from serialized strings.
      * This should be called after deserialization.
+     * 
+     * @param registry the event registry to use for deserialization
      */
-    public void reconstructEvent() {
-        if (eventRegistry == null) {
-            throw new IllegalStateException("NetworkEventRegistry not set. Call setEventRegistry() first.");
+    public void reconstructEvent(NetworkEventRegistry registry) {
+        if (registry == null) {
+            throw new IllegalStateException("NetworkEventRegistry cannot be null.");
         }
+        
+        // Store registry for potential future use
+        this.eventRegistry = registry;
         
         try {
             // Get the event class from the registry
-            Class<? extends EventService.NetworkEvent> clazz = eventRegistry.getEventClass(eventTypeString);
+            Class<? extends EventService.NetworkEvent> clazz = registry.getEventClass(eventTypeString);
             if (clazz == null) {
                 throw new RuntimeException("Unknown event type: " + eventTypeString);
             }
             this.eventType = clazz;
             
             // Deserialize the event data using the registry
-            this.eventData = eventRegistry.deserializeEvent(eventTypeString, eventDataJson);
+            this.eventData = registry.deserializeEvent(eventTypeString, eventDataJson);
             
         } catch (NetworkEventRegistry.EventDeserializationException e) {
             throw new RuntimeException("Failed to reconstruct event of type " + eventTypeString + ": " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("Failed to reconstruct event of type " + eventTypeString + ": " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Reconstructs the event type and data from serialized strings.
+     * This should be called after deserialization.
+     * Uses the previously set registry instance.
+     * 
+     * @deprecated Use {@link #reconstructEvent(NetworkEventRegistry)} to pass registry explicitly
+     */
+    @Deprecated
+    public void reconstructEvent() {
+        if (eventRegistry == null) {
+            throw new IllegalStateException("NetworkEventRegistry not set. Call setEventRegistry() first or use reconstructEvent(NetworkEventRegistry).");
+        }
+        reconstructEvent(eventRegistry);
     }
     
     /**
@@ -166,7 +189,7 @@ public class NetworkEventMessage extends BaseMessage {
     @Override
     public String toString() {
         return "NetworkEventMessage{" +
-                "eventType=" + eventType.getSimpleName() +
+                "eventType=" + (eventType != null ? eventType.getSimpleName() : eventTypeString) +
                 ", priority=" + priority +
                 ", originalServerId='" + originalServerId + '\'' +
                 ", " + super.toString() +

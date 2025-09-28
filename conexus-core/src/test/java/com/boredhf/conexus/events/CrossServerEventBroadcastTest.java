@@ -1,7 +1,8 @@
 package com.boredhf.conexus.events;
 
 import com.boredhf.conexus.communication.InMemoryMessagingService;
-import com.boredhf.conexus.events.ServerStatusEvent.Status;
+import com.boredhf.conexus.events.types.ServerStatusEvent;
+import com.boredhf.conexus.events.types.ServerStatusEvent.ServerStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
@@ -83,7 +84,7 @@ public class CrossServerEventBroadcastTest {
         Thread.sleep(100);
         
         // Create and broadcast event from server A
-        ServerStatusEvent originalEvent = new ServerStatusEvent("server-a", Status.RUNNING, "Server is now running");
+        ServerStatusEvent originalEvent = new ServerStatusEvent("server-a", ServerStatus.ONLINE, "Server is now running");
         System.out.println("Server A broadcasting event: " + originalEvent);
         
         CompletableFuture<Void> broadcastFuture = eventServiceA.broadcastEvent(originalEvent, EventService.EventPriority.NORMAL);
@@ -98,8 +99,8 @@ public class CrossServerEventBroadcastTest {
         ServerStatusEvent received = receivedEvent.get();
         assertNotNull(received, "Received event should not be null");
         assertEquals("server-a", received.getSourceServerId(), "Source server ID should match");
-        assertEquals(Status.RUNNING, received.getStatus(), "Status should match");
-        assertEquals("Server is now running", received.getMessage(), "Message should match");
+        assertEquals(ServerStatus.ONLINE, received.getStatus(), "Status should match");
+        assertEquals("Server is now running", received.getReason(), "Message should match");
         
         System.out.println("Cross-server event broadcast test completed successfully!");
     }
@@ -131,11 +132,11 @@ public class CrossServerEventBroadcastTest {
         Thread.sleep(100);
         
         // Broadcast event from server A
-        ServerStatusEvent eventFromA = new ServerStatusEvent("server-a", Status.MAINTENANCE, "Server A maintenance");
+        ServerStatusEvent eventFromA = new ServerStatusEvent("server-a", ServerStatus.MAINTENANCE, "Server A maintenance");
         eventServiceA.broadcastEvent(eventFromA).get(10, TimeUnit.SECONDS);
         
         // Broadcast event from server B
-        ServerStatusEvent eventFromB = new ServerStatusEvent("server-b", Status.RUNNING, "Server B running");
+        ServerStatusEvent eventFromB = new ServerStatusEvent("server-b", ServerStatus.ONLINE, "Server B running");
         eventServiceB.broadcastEvent(eventFromB).get(10, TimeUnit.SECONDS);
         
         // Server B should receive the event from Server A
@@ -163,9 +164,9 @@ public class CrossServerEventBroadcastTest {
         Thread.sleep(100);
         
         // Broadcast multiple events with different statuses
-        eventServiceA.broadcastEvent(new ServerStatusEvent("server-a", Status.STARTING, "Starting up")).get();
-        eventServiceA.broadcastEvent(new ServerStatusEvent("server-a", Status.RUNNING, "Now running")).get();
-        eventServiceA.broadcastEvent(new ServerStatusEvent("server-a", Status.STOPPING, "Shutting down")).get();
+        eventServiceA.broadcastEvent(new ServerStatusEvent("server-a", ServerStatus.STARTING, "Starting up")).get();
+        eventServiceA.broadcastEvent(new ServerStatusEvent("server-a", ServerStatus.ONLINE, "Now running")).get();
+        eventServiceA.broadcastEvent(new ServerStatusEvent("server-a", ServerStatus.SHUTTING_DOWN, "Shutting down")).get();
         
         assertTrue(eventsReceived.await(15, TimeUnit.SECONDS), "Should receive all 3 events");
         assertEquals(3, eventCount.get(), "Should have received exactly 3 events");

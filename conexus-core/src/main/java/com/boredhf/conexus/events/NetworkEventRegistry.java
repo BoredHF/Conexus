@@ -1,6 +1,8 @@
 package com.boredhf.conexus.events;
 
 import com.boredhf.conexus.communication.MessageSerializer;
+import com.boredhf.conexus.events.types.PlayerNetworkEvent;
+import com.boredhf.conexus.events.types.ServerStatusEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
@@ -48,8 +50,22 @@ public class NetworkEventRegistry {
      * Registers built-in event types.
      */
     private void registerBuiltInEventTypes() {
-        registerEventType(ServerStatusEvent.class, ServerStatusEvent::fromString);
-        logger.info("Registered built-in event types: ServerStatusEvent");
+        // Both ServerStatusEvent and PlayerNetworkEvent use Jackson serialization
+        registerEventType(ServerStatusEvent.class, json -> {
+            try {
+                return objectMapper.readValue(json, ServerStatusEvent.class);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to deserialize ServerStatusEvent: " + e.getMessage(), e);
+            }
+        });
+        registerEventType(PlayerNetworkEvent.class, json -> {
+            try {
+                return objectMapper.readValue(json, PlayerNetworkEvent.class);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to deserialize PlayerNetworkEvent: " + e.getMessage(), e);
+            }
+        });
+        logger.info("Registered built-in event types: ServerStatusEvent, PlayerNetworkEvent");
     }
     
     /**
