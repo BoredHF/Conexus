@@ -8,15 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial project setup with Maven multi-module structure
-- Core messaging infrastructure with pluggable transport providers
-- Redis transport provider implementation
-- Cross-server messaging with JSON serialization
-- Player data synchronization services
-- Network-wide moderation tools
-- Event broadcasting system with priority and filtering
-- Example Bukkit plugin demonstrating usage
-- Comprehensive documentation and examples
+- N/A
 
 ### Changed
 - N/A
@@ -32,6 +24,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - N/A
+
+## [1.0.0] - 2025-09-28
+
+### Added
+- Initial project setup with Maven multi-module structure
+- Core messaging infrastructure with pluggable transport providers
+- Redis transport provider implementation
+- Cross-server messaging with JSON serialization
+- Player data synchronization services
+- Network-wide moderation tools
+- Event broadcasting system with priority and filtering
+- Example Bukkit plugin demonstrating usage
+- Comprehensive documentation and examples
 
 ## [1.0.0-SNAPSHOT] - In Development
 
